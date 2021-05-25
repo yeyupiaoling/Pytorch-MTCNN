@@ -21,6 +21,10 @@ class ONet(nn.Module):
         self.bbox_fc = nn.Linear(in_features=256, out_features=4)
         self.landmark_fc = nn.Linear(in_features=256, out_features=10)
 
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal(m.weight, mode='fan_out', nonlinearity='relu')
+
     def forward(self, x):
         x = self.prelu1(self.conv1(x))
         x = self.pool1(x)

@@ -36,9 +36,7 @@ train_dataset = CustomDataset(data_path)
 train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
 
 # 设置优化方法
-optimizer = torch.optim.Adam(params=model.parameters(),
-                             lr=0.001,
-                             weight_decay=1e-4)
+optimizer = torch.optim.Adam(params=model.parameters(), lr=0.001, weight_decay=1e-4)
 
 # 获取学习率衰减函数
 scheduler = MultiStepLR(optimizer, milestones=[6, 14, 20], gamma=0.1)
@@ -51,6 +49,8 @@ landmark_loss = LandmarkLoss()
 # 开始训练
 for epoch in range(epoch_num):
     for batch_id, (img, label, bbox, landmark) in enumerate(train_loader):
+        img = img.to(device)
+        label = label.to(device).long()
         class_out, bbox_out, landmark_out = model(img)
         cls_loss = class_loss(class_out, label)
         box_loss = bbox_loss(bbox_out, bbox, label)
@@ -63,7 +63,7 @@ for epoch in range(epoch_num):
             acc = accuracy(class_out, label)
             print('[%s] Train epoch %d, batch %d, total_loss: %f, cls_loss: %f, box_loss: %f, landmarks_loss: %f, '
                   'accuracy：%f' % (
-                  datetime.now(), epoch, batch_id, total_loss, cls_loss, box_loss, landmarks_loss, acc))
+                      datetime.now(), epoch, batch_id, total_loss, cls_loss, box_loss, landmarks_loss, acc))
     scheduler.step()
 
     # 保存模型
