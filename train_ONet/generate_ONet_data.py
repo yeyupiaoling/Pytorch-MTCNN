@@ -17,15 +17,18 @@ from utils.utils import get_landmark_from_lfw_neg, get_landmark_from_celeba
 # 模型路径
 model_path = '../infer_models'
 
+device = torch.device("cuda")
 # 获取P模型
 pnet = torch.load(os.path.join(model_path, 'PNet.pth'))
+pnet.to(device)
 pnet.eval()
+softmax_p = torch.nn.Softmax(dim=0)
 
 # 获取R模型
 rnet = torch.load(os.path.join(model_path, 'RNet.pth'))
+rnet.to(device)
 rnet.eval()
-
-softmax = torch.nn.Softmax()
+softmax_r = torch.nn.Softmax(dim=-1)
 
 
 # 使用PNet模型预测
@@ -33,22 +36,24 @@ def predict_pnet(infer_data):
     # 添加待预测的图片
     infer_data = torch.tensor(infer_data, dtype=torch.float32)
     infer_data = torch.unsqueeze(infer_data, dim=0)
+    infer_data = infer_data.to(device)
     # 执行预测
     cls_prob, bbox_pred, _ = pnet(infer_data)
     cls_prob = torch.squeeze(cls_prob)
-    cls_prob = softmax(cls_prob)
+    cls_prob = softmax_p(cls_prob)
     bbox_pred = torch.squeeze(bbox_pred)
-    return cls_prob.numpy(), bbox_pred.numpy()
+    return cls_prob.detach().cpu().numpy(), bbox_pred.detach().cpu().numpy()
 
 
 # 使用RNet模型预测
 def predict_rnet(infer_data):
     # 添加待预测的图片
     infer_data = torch.tensor(infer_data, dtype=torch.float32)
+    infer_data = infer_data.to(device)
     # 执行预测
     cls_prob, bbox_pred, _ = rnet(infer_data)
-    cls_prob = softmax(cls_prob)
-    return cls_prob.numpy(), bbox_pred.numpy()
+    cls_prob = softmax_r(cls_prob)
+    return cls_prob.detach().cpu().numpy(), bbox_pred.detach().cpu().numpy()
 
 
 def detect_pnet(im, min_face_size, scale_factor, thresh):

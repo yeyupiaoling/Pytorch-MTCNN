@@ -19,10 +19,12 @@ from utils.utils import get_landmark_from_lfw_neg, get_landmark_from_celeba
 model_path = '../infer_models'
 
 # 获取P模型
+device = torch.device("cuda")
 pnet = torch.load(os.path.join(model_path, 'PNet.pth'))
+pnet.to(device)
 pnet.eval()
 
-softmax = torch.nn.Softmax()
+softmax_p = torch.nn.Softmax(dim=0)
 
 
 # 使用RNet模型预测
@@ -30,12 +32,13 @@ def predict(infer_data):
     # 添加待预测的图片
     infer_data = torch.tensor(infer_data, dtype=torch.float32)
     infer_data = torch.unsqueeze(infer_data, dim=0)
+    infer_data = infer_data.to(device)
     # 执行预测
     cls_prob, bbox_pred, _ = pnet(infer_data)
     cls_prob = torch.squeeze(cls_prob)
-    cls_prob = softmax(cls_prob)
+    cls_prob = softmax_p(cls_prob)
     bbox_pred = torch.squeeze(bbox_pred)
-    return cls_prob.numpy(), bbox_pred.numpy()
+    return cls_prob.detach().cpu().numpy(), bbox_pred.detach().cpu().numpy()
 
 
 def detect_pnet(im, min_face_size, scale_factor, thresh):

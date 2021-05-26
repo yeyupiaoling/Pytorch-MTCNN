@@ -29,7 +29,7 @@ softmax_r = torch.nn.Softmax(dim=-1)
 rnet.eval()
 
 # 获取R模型
-onet = torch.jit.load(os.path.join(args.model_path, 'ONet.pth'))
+onet = torch.load(os.path.join(args.model_path, 'ONet.pth'))
 onet.to(device)
 softmax_o = torch.nn.Softmax(dim=-1)
 onet.eval()
@@ -45,7 +45,7 @@ def predict_pnet(infer_data):
     cls_prob = torch.squeeze(cls_prob)
     cls_prob = softmax_p(cls_prob)
     bbox_pred = torch.squeeze(bbox_pred)
-    return cls_prob.data.numpy(), bbox_pred.data.numpy()
+    return cls_prob.detach().cpu().numpy(), bbox_pred.detach().cpu().numpy()
 
 
 # 使用RNet模型预测
@@ -55,7 +55,7 @@ def predict_rnet(infer_data):
     # 执行预测
     cls_prob, bbox_pred, _ = rnet(infer_data)
     cls_prob = softmax_r(cls_prob)
-    return cls_prob.data.numpy(), bbox_pred.data.numpy()
+    return cls_prob.detach().cpu().numpy(), bbox_pred.detach().cpu().numpy()
 
 
 # 使用ONet模型预测
@@ -65,7 +65,7 @@ def predict_onet(infer_data):
     # 执行预测
     cls_prob, bbox_pred, landmark_pred = onet(infer_data)
     cls_prob = softmax_o(cls_prob)
-    return cls_prob.data.numpy(), bbox_pred.data.numpy(), landmark_pred.data.numpy()
+    return cls_prob.detach().cpu().numpy(), bbox_pred.detach().cpu().numpy(), landmark_pred.detach().cpu().numpy()
 
 
 # 获取PNet网络输出结果

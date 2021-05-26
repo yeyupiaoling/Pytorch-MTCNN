@@ -29,7 +29,7 @@ model_path = '../infer_models'
 device = torch.device("cuda")
 model = ONet()
 model.to(device)
-summary(model, (3, 24, 24))
+summary(model, (3, 48, 48))
 
 # 获取数据
 train_dataset = CustomDataset(data_path)
@@ -51,6 +51,8 @@ for epoch in range(epoch_num):
     for batch_id, (img, label, bbox, landmark) in enumerate(train_loader):
         img = img.to(device)
         label = label.to(device).long()
+        bbox = bbox.to(device)
+        landmark = landmark.to(device)
         class_out, bbox_out, landmark_out = model(img)
         cls_loss = class_loss(class_out, label)
         box_loss = bbox_loss(bbox_out, bbox, label)
