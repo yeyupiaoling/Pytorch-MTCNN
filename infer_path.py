@@ -17,19 +17,19 @@ args = parser.parse_args()
 device = torch.device("cuda")
 
 # 获取P模型
-pnet = torch.load(os.path.join(args.model_path, 'PNet.pth'))
+pnet = torch.jit.load(os.path.join(args.model_path, 'PNet.pth'))
 pnet.to(device)
 softmax_p = torch.nn.Softmax(dim=0)
 pnet.eval()
 
 # 获取R模型
-rnet = torch.load(os.path.join(args.model_path, 'RNet.pth'))
+rnet = torch.jit.load(os.path.join(args.model_path, 'RNet.pth'))
 rnet.to(device)
 softmax_r = torch.nn.Softmax(dim=-1)
 rnet.eval()
 
 # 获取R模型
-onet = torch.load(os.path.join(args.model_path, 'ONet.pth'))
+onet = torch.jit.load(os.path.join(args.model_path, 'ONet.pth'))
 onet.to(device)
 softmax_o = torch.nn.Softmax(dim=-1)
 onet.eval()
@@ -250,6 +250,8 @@ def draw_face(image_path, boxes_c, landmarks):
 if __name__ == '__main__':
     # 预测图片获取人脸的box和关键点
     boxes_c, landmarks = infer_image(args.image_path)
+    print(boxes_c)
+    print(landmarks)
     # 把关键画出来
     if boxes_c is not None:
         draw_face(image_path=args.image_path, boxes_c=boxes_c, landmarks=landmarks)

@@ -70,4 +70,4 @@ for epoch in range(epoch_num):
     # 保存模型
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    torch.save(model, os.path.join(model_path, 'PNet.pth'))
+    torch.jit.save(torch.jit.script(model), os.path.join(model_path, 'PNet.pth'))
