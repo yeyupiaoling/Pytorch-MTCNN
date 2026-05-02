@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from datetime import datetime
 
 import torch
@@ -47,8 +48,11 @@ bbox_loss = BBoxLoss()
 landmark_loss = LandmarkLoss()
 
 # 开始训练
+train_start_time = time.time()
 for epoch in range(epoch_num):
+    epoch_start_time = time.time()
     for batch_id, (img, label, bbox, landmark) in enumerate(train_loader):
+        batch_start_time = time.time()
         img = img.to(device)
         label = label.to(device).long()
         bbox = bbox.to(device)
@@ -63,9 +67,19 @@ for epoch in range(epoch_num):
         optimizer.step()
         if batch_id % 100 == 0:
             acc = accuracy(class_out, label)
-            print('[%s] Train epoch %d, batch %d, total_loss: %f, cls_loss: %f, box_loss: %f, landmarks_loss: %f, '
-                  'accuracy：%f' % (
-                      datetime.now(), epoch, batch_id, total_loss, cls_loss, box_loss, landmarks_loss, acc))
+            batch_time = time.time() - batch_start_time
+            batches_done = epoch * len(train_loader) + batch_id + 1
+            total_batches = epoch_num * len(train_loader)
+            avg_time_per_batch = (time.time() - train_start_time) / batches_done
+            remaining_batches = total_batches - batches_done
+            remaining_time = remaining_batches * avg_time_per_batch
+            remaining_hours = int(remaining_time // 3600)
+            remaining_minutes = int((remaining_time % 3600) // 60)
+            remaining_seconds = int(remaining_time % 60)
+            remaining_formatted = f'{remaining_hours:02d}:{remaining_minutes:02d}:{remaining_seconds:02d}'
+            print(f'{datetime.now()} Train Epoch {epoch}/{epoch_num}, Batch {batch_id}/{len(train_loader)}, '
+                  f'total_loss: {total_loss:.4f}, cls_loss: {cls_loss:.4f}, box_loss: {box_loss:.4f}, landmarks_loss: {landmarks_loss:.4f}, '
+                  f'accuracy: {acc:.4f}, eta: {remaining_formatted}')
     scheduler.step()
 
     # 保存模型

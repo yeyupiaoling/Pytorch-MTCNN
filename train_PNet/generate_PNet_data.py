@@ -7,40 +7,17 @@ from tqdm import tqdm
 
 sys.path.append("../")
 
-from utils.data_format_converter import convert_data
-from utils.utils import IOU, combine_data_list, crop_landmark_image, delete_old_img
+from utils.utils import IOU, DirectDataSetBuilder, crop_landmark_image
 from utils.utils import get_landmark_from_lfw_neg, get_landmark_from_celeba
 
 
-# 截取pos,neg,part三种类型图片并resize成12x12大小作为PNet的输入
-def crop_12_box_image(data_path):
+# 截取pos,neg,part三种类型图片并直接写入 all_data 的缓存区
+def crop_12_box_image(data_path, dataset_builder):
     npr = np.random
     # face的id对应label的txt
     anno_file = os.path.join(data_path, 'wider_face_train.txt')
     # 图片地址
     im_dir = os.path.join(data_path, 'WIDER_train/images')
-
-    # pos，part,neg裁剪图片放置位置
-    pos_save_dir = os.path.join(data_path, '12/positive')
-    part_save_dir = os.path.join(data_path, '12/part')
-    neg_save_dir = os.path.join(data_path, '12/negative')
-    # PNet数据地址
-    save_dir = os.path.join(data_path, '12/')
-
-    # 创建文件夹
-    if not os.path.exists(save_dir):
-        os.mkdir(save_dir)
-    if not os.path.exists(pos_save_dir):
-        os.mkdir(pos_save_dir)
-    if not os.path.exists(part_save_dir):
-        os.mkdir(part_save_dir)
-    if not os.path.exists(neg_save_dir):
-        os.mkdir(neg_save_dir)
-
-    # 生成后的数据列表文件
-    f1 = open(os.path.join(save_dir, 'positive.txt'), 'w')
-    f2 = open(os.path.join(save_dir, 'negative.txt'), 'w')
-    f3 = open(os.path.join(save_dir, 'part.txt'), 'w')
 
     # 原数据集的列表文件
     with open(anno_file, 'r') as f:
@@ -65,7 +42,7 @@ def crop_12_box_image(data_path):
 
         img = cv2.imread(os.path.join(im_dir, im_path + '.jpg'))
         idx += 1
-        height, width, channel = img.shape
+        height, width, _ = img.shape
 
         neg_num = 0
         # 先随机采样一定数量neg图片
@@ -85,9 +62,7 @@ def crop_12_box_image(data_path):
 
             # iou值小于0.3判定为negative图像
             if np.max(Iou) < 0.3:
-                save_file = os.path.join(neg_save_dir, '%s.jpg' % n_idx)
-                f2.write(neg_save_dir + '/%s.jpg' % n_idx + ' 0\n')
-                cv2.imwrite(save_file, resized_im)
+                dataset_builder.add_negative(resized_im)
                 n_idx += 1
                 neg_num += 1
 
@@ -120,9 +95,7 @@ def crop_12_box_image(data_path):
                 resized_im = cv2.resize(cropped_im, (12, 12), interpolation=cv2.INTER_LINEAR)
                 # iou值小于0.3判定为negative图像
                 if np.max(Iou) < 0.3:
-                    save_file = os.path.join(neg_save_dir, '%s.jpg' % n_idx)
-                    f2.write(neg_save_dir + '/%s.jpg' % n_idx + ' 0\n')
-                    cv2.imwrite(save_file, resized_im)
+                    dataset_builder.add_negative(resized_im)
                     n_idx += 1
 
             for i in range(20):
@@ -158,36 +131,27 @@ def crop_12_box_image(data_path):
                 # box扩充一个维度作为iou输入
                 box_ = box.reshape(1, -1)
                 # 计算iou值
-                iou = IOU(crop_box, box_)
+                iou = IOU(crop_box, box_)[0]
 
                 # iou值大于0.65判定为positive图像
                 if iou >= 0.65:
-                    save_file = os.path.join(pos_save_dir, '%s.jpg' % p_idx)
-                    f1.write(pos_save_dir + '/%s.jpg' % p_idx + ' 1 %.2f %.2f %.2f %.2f\n' % (offset_x1,
-                                                                                              offset_y1, offset_x2,
-                                                                                              offset_y2))
-                    cv2.imwrite(save_file, resized_im)
+                    # 关键代码：bbox 样本不再落到分类文件夹，而是直接交给 all_data 构建器。
+                    dataset_builder.add_positive(resized_im, (offset_x1, offset_y1, offset_x2, offset_y2))
                     p_idx += 1
                 # iou值大于于0.4小于0.65判定为part图像
                 elif iou >= 0.4:
-                    save_file = os.path.join(part_save_dir, '%s.jpg' % d_idx)
-                    f3.write(part_save_dir + '/%s.jpg' % d_idx + ' -1 %.2f %.2f %.2f %.2f\n' % (offset_x1,
-                                                                                                offset_y1, offset_x2,
-                                                                                                offset_y2))
-                    cv2.imwrite(save_file, resized_im)
+                    dataset_builder.add_part(resized_im, (offset_x1, offset_y1, offset_x2, offset_y2))
                     d_idx += 1
 
     print('%s 个图片已处理，pos：%s  part: %s neg:%s' % (idx, p_idx, d_idx, n_idx))
-    f1.close()
-    f2.close()
-    f3.close()
 
 
 if __name__ == '__main__':
     data_path = '../dataset/'
+    dataset_builder = DirectDataSetBuilder(data_path, 12)
     # 获取人脸的box图片数据
     print('开始生成bbox图像数据')
-    crop_12_box_image(data_path)
+    crop_12_box_image(data_path, dataset_builder)
     # 获取人脸关键点的数据
     print('开始生成landmark图像数据')
     # 获取lfw negbox，关键点
@@ -196,13 +160,6 @@ if __name__ == '__main__':
     # 获取celeba，关键点
     # celeba_data_list = get_landmark_from_celeba(data_path)
     # data_list.extend(celeba_data_list)
-    crop_landmark_image(data_path, data_list, 12, argument=True)
-    # 合并数据列表
-    print('开始合成数据列表')
-    combine_data_list(os.path.join(data_path, '12'))
-    # 合并图像数据
-    print('开始合成图像文件')
-    convert_data(os.path.join(data_path, '12'), os.path.join(data_path, '12', 'all_data'))
-    # 删除旧数据
-    print('开始删除旧的图像文件')
-    delete_old_img(data_path, 12)
+    crop_landmark_image(data_path, data_list, 12, argument=True, dataset_builder=dataset_builder)
+    print('开始直接生成PNet数据集')
+    dataset_builder.finalize()

@@ -5,6 +5,94 @@ import random
 import os
 import cv2
 from tqdm import tqdm
+from utils.data_format_converter import convert_encoded_data_list
+
+
+class DirectDataSetBuilder:
+    """直接构建 all_data，避免先写入正负样本分类目录再二次合并。"""
+
+    def __init__(self, data_dir, size):
+        self.output_dir = os.path.join(data_dir, str(size))
+        os.makedirs(self.output_dir, exist_ok=True)
+        self.samples = {
+            'positive': [],
+            'negative': [],
+            'part': [],
+            'landmark': [],
+        }
+
+    @staticmethod
+    def _encode_image(image):
+        ok, encoded = cv2.imencode('.bmp', image)
+        if not ok:
+            raise ValueError('编码裁剪图片失败')
+        return encoded.tobytes()
+
+    def add_negative(self, image):
+        img_bytes = self._encode_image(image)
+        self.samples['negative'].append((img_bytes, 0, [0, 0, 0, 0], [0] * 10))
+
+    def add_positive(self, image, offsets):
+        img_bytes = self._encode_image(image)
+        self.samples['positive'].append((img_bytes, 1, list(offsets), [0] * 10))
+
+    def add_part(self, image, offsets):
+        img_bytes = self._encode_image(image)
+        self.samples['part'].append((img_bytes, -1, list(offsets), [0] * 10))
+
+    def add_landmark(self, image, landmarks):
+        img_bytes = self._encode_image(image)
+        self.samples['landmark'].append((img_bytes, -2, [0, 0, 0, 0], list(landmarks)))
+
+    @staticmethod
+    def _choice_indices(sample_count, keep_count):
+        if sample_count <= 0 or keep_count <= 0:
+            return []
+        npr = np.random
+        return npr.choice(sample_count, size=keep_count, replace=keep_count > sample_count)
+
+    def build(self):
+        pos = self.samples['positive']
+        neg = self.samples['negative']
+        part = self.samples['part']
+        landmark = self.samples['landmark']
+        base_num = len(pos) // 1000 * 1000
+
+        s1 = '整理前的数据：neg数量：{} pos数量：{} part数量:{} landmark: {} 基数:{}'.format(
+            len(neg), len(pos), len(part), len(landmark), base_num
+        )
+        print(s1)
+
+        neg_keep = self._choice_indices(len(neg), base_num * 3)
+        part_keep = self._choice_indices(len(part), base_num)
+        pos_keep = self._choice_indices(len(pos), base_num)
+        landmark_keep = self._choice_indices(len(landmark), base_num * 2)
+
+        s2 = '整理后的数据：neg数量：{} pos数量：{} part数量:{} landmark数量：{}'.format(
+            len(neg_keep), len(pos_keep), len(part_keep), len(landmark_keep)
+        )
+        print(s2)
+
+        with open(os.path.join(self.output_dir, 'temp.txt'), 'a', encoding='utf-8') as f_temp:
+            f_temp.write('%s\n' % s1)
+            f_temp.write('%s\n' % s2)
+            f_temp.flush()
+
+        final_samples = []
+        for i in pos_keep:
+            final_samples.append(pos[i])
+        for i in neg_keep:
+            final_samples.append(neg[i])
+        for i in part_keep:
+            final_samples.append(part[i])
+        for i in landmark_keep:
+            final_samples.append(landmark[i])
+
+        # 关键代码：直接把内存中的样本写成最终训练二进制文件，不生成任何中间图片文件。
+        convert_encoded_data_list(final_samples, os.path.join(self.output_dir, 'all_data'))
+
+    def finalize(self):
+        self.build()
 
 
 class BBox:
@@ -222,7 +310,7 @@ def combine_data_list(data_dir):
             f.write(landmark[i].replace('\\', '/'))
 
 
-def crop_landmark_image(data_dir, data_list, size, argument=True):
+def crop_landmark_image(data_dir, data_list, size, argument=True, dataset_builder=None):
     """裁剪并保存带有人脸关键点的图片
     参数：
       data_dir：数据目录
@@ -232,18 +320,17 @@ def crop_landmark_image(data_dir, data_list, size, argument=True):
     npr = np.random
     image_id = 0
 
-    # 数据输出路径
+    # 兼容旧流程：未传入构建器时仍然按照原逻辑写入 landmark 目录和文本。
     output = os.path.join(data_dir, str(size))
-    if not os.path.exists(output):
-        os.makedirs(output)
-
-    # 图片处理后输出路径
-    dstdir = os.path.join(output, 'landmark')
-    if not os.path.exists(dstdir):
-        os.mkdir(dstdir)
-
-    # 记录label的txt
-    f = open(os.path.join(output, 'landmark.txt'), 'w')
+    f = None
+    dstdir = None
+    if dataset_builder is None:
+        if not os.path.exists(output):
+            os.makedirs(output)
+        dstdir = os.path.join(output, 'landmark')
+        if not os.path.exists(dstdir):
+            os.mkdir(dstdir)
+        f = open(os.path.join(output, 'landmark.txt'), 'w')
     idx = 0
     for (imgPath, box, landmarkGt) in tqdm(data_list):
         # 存储人脸图片和关键点
@@ -365,13 +452,17 @@ def crop_landmark_image(data_dir, data_list, size, argument=True):
                 continue
             if np.sum(np.where(F_landmarks[i] >= 1, 1, 0)) > 0:
                 continue
-            # 保存裁剪带有关键点的图片
-            cv2.imwrite(os.path.join(dstdir, '%d.jpg' % (image_id)), F_imgs[i])
-            # 把图片路径和label，还有关键点保存到数据列表上
-            landmarks = list(map(str, list(F_landmarks[i])))
-            f.write(os.path.join(dstdir, '%d.jpg' % (image_id)) + ' -2 ' + ' '.join(landmarks) + '\n')
+            if dataset_builder is not None:
+                dataset_builder.add_landmark(F_imgs[i], F_landmarks[i])
+            else:
+                # 保存裁剪带有关键点的图片
+                cv2.imwrite(os.path.join(dstdir, '%d.jpg' % (image_id)), F_imgs[i])
+                # 把图片路径和label，还有关键点保存到数据列表上
+                landmarks = list(map(str, list(F_landmarks[i])))
+                f.write(os.path.join(dstdir, '%d.jpg' % (image_id)) + ' -2 ' + ' '.join(landmarks) + '\n')
             image_id += 1
-    f.close()
+    if f is not None:
+        f.close()
 
 
 # 镜像处理
@@ -606,7 +697,7 @@ def delete_old_img(old_image_folder, image_size):
     os.remove(os.path.join(old_image_folder, str(image_size), 'landmark.txt'))
 
 
-def save_hard_example(data_path, save_size):
+def save_hard_example(data_path, save_size, dataset_builder=None):
     """
     根据预测的结果裁剪下一个网络所需要训练的图片的标注数据
     :param data_path: 数据的根目录
@@ -621,25 +712,30 @@ def save_hard_example(data_path, save_size):
     im_idx_list = data['images']
     gt_boxes_list = data['bboxes']
 
-    # 保存裁剪图片数据文件夹
-    pos_save_dir = os.path.join(data_path, '%d/positive' % save_size)
-    part_save_dir = os.path.join(data_path, '%d/part' % save_size)
-    neg_save_dir = os.path.join(data_path, '%d/negative' % save_size)
+    pos_save_dir = None
+    part_save_dir = None
+    neg_save_dir = None
+    neg_file = None
+    pos_file = None
+    part_file = None
+    if dataset_builder is None:
+        # 兼容旧流程：未传入构建器时仍然写入分类目录和标注文件。
+        pos_save_dir = os.path.join(data_path, '%d/positive' % save_size)
+        part_save_dir = os.path.join(data_path, '%d/part' % save_size)
+        neg_save_dir = os.path.join(data_path, '%d/negative' % save_size)
 
-    # 创建文件夹
-    if not os.path.exists(data_path):
-        os.makedirs(data_path)
-    if not os.path.exists(pos_save_dir):
-        os.mkdir(pos_save_dir)
-    if not os.path.exists(part_save_dir):
-        os.mkdir(part_save_dir)
-    if not os.path.exists(neg_save_dir):
-        os.mkdir(neg_save_dir)
+        if not os.path.exists(data_path):
+            os.makedirs(data_path)
+        if not os.path.exists(pos_save_dir):
+            os.mkdir(pos_save_dir)
+        if not os.path.exists(part_save_dir):
+            os.mkdir(part_save_dir)
+        if not os.path.exists(neg_save_dir):
+            os.mkdir(neg_save_dir)
 
-    # 保存图片数据的列表文件
-    neg_file = open(os.path.join(data_path, '%d/negative.txt' % save_size), 'w')
-    pos_file = open(os.path.join(data_path, '%d/positive.txt' % save_size), 'w')
-    part_file = open(os.path.join(data_path, '%d/part.txt' % save_size), 'w')
+        neg_file = open(os.path.join(data_path, '%d/negative.txt' % save_size), 'w')
+        pos_file = open(os.path.join(data_path, '%d/positive.txt' % save_size), 'w')
+        part_file = open(os.path.join(data_path, '%d/part.txt' % save_size), 'w')
 
     # 读取预测结果
     det_boxes = pickle.load(open(os.path.join(data_path, '%d/detections.pkl' % save_size), 'rb'))
@@ -690,11 +786,14 @@ def save_hard_example(data_path, save_size):
 
             # 划分种类
             if np.max(Iou) < 0.3 and neg_num < 60:
-                # 保存negative图片，同时也避免产生太多的negative图片
-                save_file = os.path.join(neg_save_dir, "%s.jpg" % n_idx)
-                # 指定label为0
-                neg_file.write(save_file + ' 0\n')
-                cv2.imwrite(save_file, resized_im)
+                if dataset_builder is not None:
+                    dataset_builder.add_negative(resized_im)
+                else:
+                    # 保存negative图片，同时也避免产生太多的negative图片
+                    save_file = os.path.join(neg_save_dir, "%s.jpg" % n_idx)
+                    # 指定label为0
+                    neg_file.write(save_file + ' 0\n')
+                    cv2.imwrite(save_file, resized_im)
                 n_idx += 1
                 neg_num += 1
             else:
@@ -711,23 +810,32 @@ def save_hard_example(data_path, save_size):
 
                 # pos和part
                 if np.max(Iou) >= 0.65:
-                    # 保存positive图片，同时也避免产生太多的positive图片
-                    save_file = os.path.join(pos_save_dir, "%s.jpg" % p_idx)
-                    # 指定label为1
-                    pos_file.write(
-                        save_file + ' 1 %.2f %.2f %.2f %.2f\n' % (offset_x1, offset_y1, offset_x2, offset_y2))
-                    cv2.imwrite(save_file, resized_im)
+                    if dataset_builder is not None:
+                        dataset_builder.add_positive(resized_im, (offset_x1, offset_y1, offset_x2, offset_y2))
+                    else:
+                        # 保存positive图片，同时也避免产生太多的positive图片
+                        save_file = os.path.join(pos_save_dir, "%s.jpg" % p_idx)
+                        # 指定label为1
+                        pos_file.write(
+                            save_file + ' 1 %.2f %.2f %.2f %.2f\n' % (offset_x1, offset_y1, offset_x2, offset_y2))
+                        cv2.imwrite(save_file, resized_im)
                     p_idx += 1
 
                 elif np.max(Iou) >= 0.4:
-                    # 保存part图片，同时也避免产生太多的part图片
-                    save_file = os.path.join(part_save_dir, "%s.jpg" % d_idx)
-                    # 指定label为-1
-                    part_file.write(
-                        save_file + ' -1 %.2f %.2f %.2f %.2f\n' % (offset_x1, offset_y1, offset_x2, offset_y2))
-                    cv2.imwrite(save_file, resized_im)
+                    if dataset_builder is not None:
+                        dataset_builder.add_part(resized_im, (offset_x1, offset_y1, offset_x2, offset_y2))
+                    else:
+                        # 保存part图片，同时也避免产生太多的part图片
+                        save_file = os.path.join(part_save_dir, "%s.jpg" % d_idx)
+                        # 指定label为-1
+                        part_file.write(
+                            save_file + ' -1 %.2f %.2f %.2f %.2f\n' % (offset_x1, offset_y1, offset_x2, offset_y2))
+                        cv2.imwrite(save_file, resized_im)
                     d_idx += 1
     pbar.close()
-    neg_file.close()
-    part_file.close()
-    pos_file.close()
+    if neg_file is not None:
+        neg_file.close()
+    if part_file is not None:
+        part_file.close()
+    if pos_file is not None:
+        pos_file.close()

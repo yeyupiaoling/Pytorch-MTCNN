@@ -4,8 +4,21 @@ MTCNN，Multi-task convolutional neural network（多任务卷积神经网络）
 
 
 # 环境
- - Pytorch 1.8.1
- - Python 3.7
+ - Pytorch 2.11.0
+ - Python 3.11
+
+# 安装依赖
+ 1. 安装Pytorch。
+```
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+```
+
+ 2. 安装其他依赖。
+```
+pip3 install -r requirements.txt
+```
+
+
 
 # 文件介绍
  - `models/Loss.py` MTCNN所使用的损失函数，包括分类损失函数、人脸框损失函数、关键点损失函数
@@ -26,7 +39,7 @@ MTCNN，Multi-task convolutional neural network（多任务卷积神经网络）
 
 
 # 数据集下载
- - [WIDER Face](http://mmlab.ie.cuhk.edu.hk/projects/WIDERFace/) 下载训练数据WIDER Face Training Images，解压的WIDER_train文件夹放置到dataset下。并下载 [Face annotations](http://mmlab.ie.cuhk.edu.hk/projects/WIDERFace/support/bbx_annotation/wider_face_split.zip) ，解压把里面的 wider_face_train_bbx_gt.txt 文件放在dataset目录下，
+ - [WIDER Face](http://mmlab.ie.cuhk.edu.hk/projects/WIDERFace/) 下载训练数据WIDER Face Training Images，解压的WIDER_train文件夹放置到dataset下。
  - [Deep Convolutional Network Cascade for Facial Point Detection](http://mmlab.ie.cuhk.edu.hk/archive/CNN_FacePoint.htm) 。下载 Training set 并解压，将里面的 lfw_5590 和 net_7876 文件夹放置到dataset下
  - 解压数据集之后，`dataset`目录下应该有文件夹`lfw_5590`，`net_7876`，`WIDER_train`，有标注文件`testImageList.txt`，`trainImageList.txt`，`wider_face_train.txt`
 
@@ -41,6 +54,7 @@ PNet全称为Proposal Network，其基本的构造是一个全卷积网络，P-N
 ![PNet](https://img-blog.csdnimg.cn/2021031622070120.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzMzMjAwOTY3,size_16,color_FFFFFF,t_70)
  - `cd train_PNet` 切换到`train_PNet`文件夹
  - `python3 generate_PNet_data.py` 首先需要生成PNet模型训练所需要的图像数据
+ - `python3 show_PNet_data.py` 显示PNet模型训练数据的预览
  - `python3 train_PNet.py` 开始训练PNet模型
 
 ## 第二步 训练RNet模型
@@ -49,6 +63,7 @@ PNet全称为Proposal Network，其基本的构造是一个全卷积网络，P-N
 ![RNet模型](https://img-blog.csdnimg.cn/20210316221211297.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzMzMjAwOTY3,size_16,color_FFFFFF,t_70)
  - `cd train_RNet` 切换到`train_RNet`文件夹
  - `python3 generate_RNet_data.py` 使用上一步训练好的PNet模型生成RNet训练所需的图像数据
+ - `python3 show_RNet_data.py` 显示RNet模型训练数据的预览
  - `python3 train_RNet.py` 开始训练RNet模型
 
 
@@ -58,6 +73,7 @@ ONet全称为Output Network，基本结构是一个较为复杂的卷积神经�
 ![ONet模型](https://img-blog.csdnimg.cn/20210316221433363.png)
  - `cd train_ONet` 切换到`train_ONet`文件夹
  - `python3 generate_ONet_data.py` 使用上两部步训练好的PNet模型和RNet模型生成ONet训练所需的图像数据
+ - `python3 show_ONet_data.py` 显示ONet模型训练数据的预览
  - `python3 train_ONet.py` 开始训练ONet模型
 
 # 预测

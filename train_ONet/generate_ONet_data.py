@@ -9,8 +9,7 @@ from tqdm import tqdm
 
 sys.path.append("../")
 
-from utils.data_format_converter import convert_data
-from utils.utils import py_nms, combine_data_list, crop_landmark_image, delete_old_img, pad, processed_image
+from utils.utils import DirectDataSetBuilder, py_nms, crop_landmark_image, pad, processed_image
 from utils.utils import save_hard_example, generate_bbox, read_annotation, convert_to_square, calibrate_box
 from utils.utils import get_landmark_from_lfw_neg, get_landmark_from_celeba
 
@@ -19,13 +18,13 @@ model_path = '../infer_models'
 
 device = torch.device("cuda")
 # 获取P模型
-pnet = torch.load(os.path.join(model_path, 'PNet.pth'))
+pnet = torch.jit.load(os.path.join(model_path, 'PNet.pth'))
 pnet.to(device)
 pnet.eval()
 softmax_p = torch.nn.Softmax(dim=0)
 
 # 获取R模型
-rnet = torch.load(os.path.join(model_path, 'RNet.pth'))
+rnet = torch.jit.load(os.path.join(model_path, 'RNet.pth'))
 rnet.to(device)
 rnet.eval()
 softmax_r = torch.nn.Softmax(dim=-1)
@@ -154,24 +153,13 @@ def detect_rnet(im, dets, thresh):
     return boxes, boxes_c
 
 
-# 截取pos,neg,part三种类型图片并resize成24x24大小作为RNet的输入
-def crop_48_box_image(data_path, filename, min_face_size, scale_factor, p_thresh, r_thresh):
-    # pos，part,neg裁剪图片放置位置
-    pos_save_dir = os.path.join(data_path, '48/positive')
-    part_save_dir = os.path.join(data_path, '48/part')
-    neg_save_dir = os.path.join(data_path, '48/negative')
-    # RNet数据地址
+# 截取pos,neg,part三种类型图片并直接写入 all_data 的缓存区
+def crop_48_box_image(data_path, filename, min_face_size, scale_factor, p_thresh, r_thresh, dataset_builder):
+    # ONet 数据地址
     save_dir = os.path.join(data_path, '48/')
 
-    # 创建文件夹
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
-    if not os.path.exists(pos_save_dir):
-        os.mkdir(pos_save_dir)
-    if not os.path.exists(part_save_dir):
-        os.mkdir(part_save_dir)
-    if not os.path.exists(neg_save_dir):
-        os.mkdir(neg_save_dir)
 
     # 读取标注数据
     data = read_annotation(data_path, filename)
@@ -202,20 +190,21 @@ def crop_48_box_image(data_path, filename, min_face_size, scale_factor, p_thresh
     with open(save_file, 'wb') as f:
         pickle.dump(all_boxes, f, 1)
 
-    save_hard_example(data_path, 48)
+    # 关键代码：直接把硬样本写入 all_data 构建器，不再生成正负样本目录。
+    save_hard_example(data_path, 48, dataset_builder=dataset_builder)
 
 
 if __name__ == '__main__':
     data_path = '../dataset/'
-    base_dir = '../dataset/WIDER_train/'
     filename = '../dataset/wider_face_train.txt'
     min_face_size = 20
     scale_factor = 0.79
     p_thresh = 0.6
     r_thresh = 0.7
+    dataset_builder = DirectDataSetBuilder(data_path, 48)
     # 获取人脸的box图片数据
     print('开始生成bbox图像数据')
-    crop_48_box_image(data_path, filename, min_face_size, scale_factor, p_thresh, r_thresh)
+    crop_48_box_image(data_path, filename, min_face_size, scale_factor, p_thresh, r_thresh, dataset_builder)
     # 获取人脸关键点的数据
     print('开始生成landmark图像数据')
     # 获取lfw negbox，关键点
@@ -224,13 +213,6 @@ if __name__ == '__main__':
     # 获取celeba，关键点
     # celeba_data_list = get_landmark_from_celeba(data_path)
     # data_list.extend(celeba_data_list)
-    crop_landmark_image(data_path, data_list, 48, argument=True)
-    # 合并数据列表
-    print('开始合成数据列表')
-    combine_data_list(os.path.join(data_path, '48'))
-    # 合并图像数据
-    print('开始合成图像文件')
-    convert_data(os.path.join(data_path, '48'), os.path.join(data_path, '48', 'all_data'))
-    # 删除旧数据
-    print('开始删除就得图像文件')
-    delete_old_img(data_path, 48)
+    crop_landmark_image(data_path, data_list, 48, argument=True, dataset_builder=dataset_builder)
+    print('开始直接生成ONet数据集')
+    dataset_builder.finalize()
