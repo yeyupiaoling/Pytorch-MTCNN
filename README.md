@@ -18,8 +18,6 @@ pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu13
 pip3 install -r requirements.txt
 ```
 
-
-
 # 文件介绍
  - `models/Loss.py` MTCNN所使用的损失函数，包括分类损失函数、人脸框损失函数、关键点损失函数
  - `models/PNet.py` PNet网络结构
@@ -51,7 +49,7 @@ pip3 install -r requirements.txt
 ## 第一步 训练PNet模型
 PNet全称为Proposal Network，其基本的构造是一个全卷积网络，P-Net是一个人脸区域的区域建议网络，该网络的将特征输入结果三个卷积层之后，通过一个人脸分类器判断该区域是否是人脸，同时使用边框回归。
 
-![PNet](https://img-blog.csdnimg.cn/2021031622070120.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzMzMjAwOTY3,size_16,color_FFFFFF,t_70)
+![PNet模型](docs/PNet.png)
  - `cd train_PNet` 切换到`train_PNet`文件夹
  - `python3 generate_PNet_data.py` 首先需要生成PNet模型训练所需要的图像数据
  - `python3 show_PNet_data.py` 显示PNet模型训练数据的预览
@@ -60,7 +58,7 @@ PNet全称为Proposal Network，其基本的构造是一个全卷积网络，P-N
 ## 第二步 训练RNet模型
 全称为Refine Network，其基本的构造是一个卷积神经网络，相对于第一层的P-Net来说，增加了一个全连接层，因此对于输入数据的筛选会更加严格。在图片经过P-Net后，会留下许多预测窗口，我们将所有的预测窗口送入R-Net，这个网络会滤除大量效果比较差的候选框，最后对选定的候选框进行Bounding-Box Regression和NMS进一步优化预测结果。
 
-![RNet模型](https://img-blog.csdnimg.cn/20210316221211297.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzMzMjAwOTY3,size_16,color_FFFFFF,t_70)
+![RNet模型](docs/RNet.png)
  - `cd train_RNet` 切换到`train_RNet`文件夹
  - `python3 generate_RNet_data.py` 使用上一步训练好的PNet模型生成RNet训练所需的图像数据
  - `python3 show_RNet_data.py` 显示RNet模型训练数据的预览
@@ -70,7 +68,7 @@ PNet全称为Proposal Network，其基本的构造是一个全卷积网络，P-N
 ## 第三步 训练ONet模型
 ONet全称为Output Network，基本结构是一个较为复杂的卷积神经网络，相对于R-Net来说多了一个卷积层。O-Net的效果与R-Net的区别在于这一层结构会通过更多的监督来识别面部的区域，而且会对人的面部特征点进行回归，最终输出五个人脸面部特征点。
 
-![ONet模型](https://img-blog.csdnimg.cn/20210316221433363.png)
+![ONet模型](docs/ONet.png)
  - `cd train_ONet` 切换到`train_ONet`文件夹
  - `python3 generate_ONet_data.py` 使用上两部步训练好的PNet模型和RNet模型生成ONet训练所需的图像数据
  - `python3 show_ONet_data.py` 显示ONet模型训练数据的预览
@@ -79,7 +77,7 @@ ONet全称为Output Network，基本结构是一个较为复杂的卷积神经�
 # 预测
 
  - `python3 infer_path.py` 使用图像路径，识别图片中人脸box和关键点，并显示识别结果
-![识别结果](https://img-blog.csdnimg.cn/2021040721044636.jpg)
+![识别结果](docs/result.jpg)
 
 
  - `python3 infer_camera.py` 使用相机捕获图像，识别图片中人脸box和关键点，并显示识别结果

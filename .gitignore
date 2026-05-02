@@ -6,5 +6,4 @@ dataset/*
 !dataset/wider_face_train.txt
 create_dataset.py
 !dataset/test.jpg
-result.jpg
 test.py
