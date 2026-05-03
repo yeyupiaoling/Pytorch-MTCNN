@@ -325,11 +325,9 @@ def crop_landmark_image(data_dir, data_list, size, argument=True, dataset_builde
     f = None
     dstdir = None
     if dataset_builder is None:
-        if not os.path.exists(output):
-            os.makedirs(output)
+        os.makedirs(output, exist_ok=True)
         dstdir = os.path.join(output, 'landmark')
-        if not os.path.exists(dstdir):
-            os.mkdir(dstdir)
+        os.makedirs(dstdir, exist_ok=True)
         f = open(os.path.join(output, 'landmark.txt'), 'w')
     idx = 0
     for (imgPath, box, landmarkGt) in tqdm(data_list):
@@ -724,14 +722,10 @@ def save_hard_example(data_path, save_size, dataset_builder=None):
         part_save_dir = os.path.join(data_path, '%d/part' % save_size)
         neg_save_dir = os.path.join(data_path, '%d/negative' % save_size)
 
-        if not os.path.exists(data_path):
-            os.makedirs(data_path)
-        if not os.path.exists(pos_save_dir):
-            os.mkdir(pos_save_dir)
-        if not os.path.exists(part_save_dir):
-            os.mkdir(part_save_dir)
-        if not os.path.exists(neg_save_dir):
-            os.mkdir(neg_save_dir)
+        os.makedirs(data_path, exist_ok=True)
+        os.makedirs(pos_save_dir, exist_ok=True)
+        os.makedirs(part_save_dir, exist_ok=True)
+        os.makedirs(neg_save_dir, exist_ok=True)
 
         neg_file = open(os.path.join(data_path, '%d/negative.txt' % save_size), 'w')
         pos_file = open(os.path.join(data_path, '%d/positive.txt' % save_size), 'w')

@@ -83,6 +83,5 @@ for epoch in range(epoch_num):
     scheduler.step()
 
     # 保存模型
-    if not os.path.exists(model_path):
-        os.makedirs(model_path)
+    os.makedirs(model_path, exist_ok=True)
     torch.jit.save(torch.jit.script(model), os.path.join(model_path, 'RNet.pth'))
