@@ -277,9 +277,67 @@ Estimated Total Size (MB): 3.25
 
 # 预测
 
+- `python3 infer_camera.py` 使用摄像头捕获图像，识别图片中人脸box和关键点，并显示识别结果
+- `python3 infer_server.py` 使用启动人脸检测服务，提供接口给其他应用调用。
+
+示例调用：
+```python
+import requests
+
+url = "http://localhost:8000/detect"
+files = {"file": open("dataset/test.jpg", "rb")}
+response = requests.post(url, files=files)
+print(response.json())
+```
+
+接口返回如下：
+```json
+{
+  "face_count": 14,
+  "faces": [
+    {
+      "bbox": {
+        "x1": 268,
+        "y1": 123,
+        "x2": 320,
+        "y2": 193,
+        "score": 1
+      },
+      "landmarks": [
+        {
+          "x": 282,
+          "y": 147
+        },
+        {
+          "x": 306,
+          "y": 149
+        },
+        {
+          "x": 295,
+          "y": 159
+        },
+        {
+          "x": 283,
+          "y": 173
+        },
+        {
+          "x": 303,
+          "y": 174
+        }
+      ]
+    }
+    ......
+  ],
+  "image_width": 1024,
+  "image_height": 432
+}
+```
+
+
 - `python3 infer_path.py` 使用图像路径，识别图片中人脸box和关键点，并显示识别结果
+
   ![识别结果](docs/result.jpg)
-- `python3 infer_camera.py` 使用相机捕获图像，识别图片中人脸box和关键点，并显示识别结果
+
 
 ## 参考资料
 

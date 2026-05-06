@@ -1,3 +1,6 @@
 opencv-python~=4.13.0.92
 numpy~=2.4.3
 tqdm~=4.67.3
+fastapi~=0.115.0
+uvicorn~=0.32.0
+python-multipart~=0.0.20
