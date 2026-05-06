@@ -339,6 +339,23 @@ print(response.json())
   ![识别结果](docs/result.jpg)
 
 
+# Android部署
+
+- `python3 model_to_android.py` 导出模型为Android可加载的格式，会将模型文件导出到Android项目的`assets`目录下。
+- 使用Android Studio打开Android项目，点击运行按钮，即可在设备上运行。
+
+效果图如下：
+
+![Android识别结果](docs/android_result.jpg)
+
+
+# C++部署
+
+项目代码和构建说明：
+- 项目代码在`cpp/`目录下
+- 构建说明和使用说明在[cpp/README.md](cpp/README.md)文件中
+
+
 ## 参考资料
 
 1. <https://github.com/AITTSMD/MTCNN-Tensorflow>
